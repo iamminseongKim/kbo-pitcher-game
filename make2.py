@@ -5,7 +5,7 @@ import os
 import shutil
 import imageio_ffmpeg
 
-def process_gif_to_mp4(input_path, output_path):
+def process_gif_to_mp4(input_path, output_path, pattern_image_path):
     # GIF 읽기 (imageio 사용)
     gif_reader = imageio.get_reader(input_path)
     frames = []
@@ -14,6 +14,9 @@ def process_gif_to_mp4(input_path, output_path):
     meta_data = gif_reader.get_meta_data()
     fps = meta_data.get('fps', 30)
 
+    # 패턴 이미지 로드
+    pattern_image = cv2.imread(pattern_image_path)
+    
     for frame in gif_reader:
         # 이미지 크기 가져오기
         frame_array = np.array(frame)
@@ -32,11 +35,14 @@ def process_gif_to_mp4(input_path, output_path):
         # 미디언 블러로 작은 노이즈 제거
         mask = cv2.medianBlur(mask, 5)
         
-        # 초록색 실루엣 생성 (RGB에서 G만 활성화)
-        green_silhouette = cv2.merge([np.zeros_like(mask), mask, np.zeros_like(mask)])
+        # 패턴 이미지 크기를 실루엣 이미지와 일치하도록 조정
+        resized_pattern = cv2.resize(pattern_image, (frame_array.shape[1], frame_array.shape[0]))
+
+        # 실루엣 마스크를 패턴에 적용 (마스크 값이 255인 영역만 패턴을 적용)
+        colored_silhouette = cv2.bitwise_and(resized_pattern, resized_pattern, mask=mask)
         
         # 프레임 리스트에 저장
-        frames.append(green_silhouette)
+        frames.append(colored_silhouette)
 
     # MP4로 저장
     writer = imageio.get_writer(output_path, fps=fps, codec='libx264', quality=7)
@@ -48,6 +54,7 @@ def process_gif_to_mp4(input_path, output_path):
 input_folder = "assets/"
 output_folder = "result/"
 original_folder = "original/"
+pattern_image_path = "patten/pattern.jpg"  # 패턴 이미지 파일 경로
 
 # 필요한 폴더들이 없으면 생성
 for folder in [output_folder, original_folder]:
@@ -63,7 +70,7 @@ for filename in os.listdir(input_folder):
         original_path = os.path.join(original_folder, filename)
         
         # GIF를 MP4로 처리
-        process_gif_to_mp4(input_path, output_path)
+        process_gif_to_mp4(input_path, output_path, pattern_image_path)
         print(f"Processed: {filename} -> {output_filename}")
         
         # 원본 파일을 original 폴더로 이동
